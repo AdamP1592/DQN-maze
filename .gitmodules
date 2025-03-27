@@ -1,0 +1,3 @@
+[submodule "mazeGame"]
+	path = mazeGame
+	url = https://github.com/AdamP1592/mazeGame
