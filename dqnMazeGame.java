@@ -34,14 +34,88 @@ class dqnMazeGame{
 
         game = new MazeGame(gameSize, gameSize, randomSeed);
 
-        int[][] mazeMap = mazeToInt();
-        double[] processedMaze = processMaze(mazeMap);
         
-        int flattenedSize = processedMaze.length;
-
+    }
+    public void dqn(){
+        int flattenedSize = gameSize*gameSize;
         //w q e and s outputs
-        int[] networkStructure = {flattenedSize, 128, 64, 32, 8, 4} ;
-        
+        int[] networkStructure = {flattenedSize, 128, 64, 32, 8, 4};
+
+        NeuralNetwork qPredicted = new NeuralNetwork(networkStructure);
+        NeuralNetwork qNext = qPredicted.copy();
+        learn(qPredicted, qNext);
+        qPredicted.close();
+        qNext.close();
+
+    }
+
+    public void learn(NeuralNetwork currentMoveModel, NeuralNetwork nextMoveModel){
+        int[][] mazeMap = mazeToInt();
+        //converts intmap to flattedned maze of normalized values
+        double[] processedMaze = processMaze(mazeMap);
+        double epsilon = 0.1;
+        double gamma = 0.99;
+        boolean endCondition = false;
+        //q, w, e, s
+        int numActions = 4;
+
+        while(!endCondition){
+
+            int currentHealth = game.getHealth();
+            int action = 0;
+            if(Math.random() < epsilon){
+                action = (int) (Math.random() * numActions);
+            }
+            else{
+                double qValues[] = new double[numActions];
+                qValues = currentMoveModel.forward(processedMaze);
+                double maxQ = qValues[0];
+                for(int i = 1; i < numActions; i++){
+                    if(maxQ < qValues[i]){
+                        maxQ = qValues[i];
+                        action = i;
+                    }
+                    
+                }
+
+            }
+            double preMoveDistance = game.distanceToGoal();
+            game.move(action);
+            double postMoveDistance = game.distanceToGoal();
+            //every time you move you get a negative reward
+            double reward = -0.05;
+            int newHealth = game.getHealth();
+            //punishment rules
+            if(newHealth < currentHealth){
+                reward -= 0.1;
+            }
+            if(!game.canMove()){
+                reward -= 0.05; //penalty if there is a stuck effect
+            }
+            //reward rules
+            if(newHealth > currentHealth){
+                reward += 0.1;
+            }
+            if(preMoveDistance > postMoveDistance){
+                reward += 0.01;
+            }
+            
+            //conclusion rules
+            if(game.isGameOver()){
+                if(game.isDead()){
+                    reward = -1;
+                }
+                if(game.goalReached()){
+                    reward = 1;
+                }
+            }   
+            double[] predictedQ = new double[numActions];
+            
+
+
+            endCondition = true;
+        }
+
     }
     //normalizes and flattens maze
     public double[] processMaze(int[][] mazeMap){
