@@ -1,0 +1,20 @@
+
+{
+    "configurations": [
+      {
+        "name": "Win32",
+        "includePath": [
+          "${workspaceFolder}/**",
+          "C:/Program Files/Java/jdk-24/include",
+          "C:/Program Files/Java/jdk-24/include/win32"
+        ],
+        "defines": [],
+        "compilerPath": "C:/cygwin64/bin/g++.exe",
+        "cStandard": "c11",
+        "cppStandard": "c++17",
+        "intelliSenseMode": "gcc-x64"
+      }
+    ],
+    "version": 4
+  }
+  

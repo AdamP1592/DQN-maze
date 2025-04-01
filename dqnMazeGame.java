@@ -1,5 +1,6 @@
 
 import gamepkg.*;
+import neuralNetwork.NeuralNetwork;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,9 +22,79 @@ import java.io.IOException;
 class dqnMazeGame{
     Json ids = new Json();
     String labelFP = "./data/labels.json";
+    int gameSize = 25; 
+    int randomSeed = 512;
+
+    MazeGame game;
     public void main(){
-        Entity[][] maze = createMaze(512);
-        int [][] mazeMap = mazeToInt(maze);
+        setup();        
+        
+    }
+    public void setup(){
+
+        game = new MazeGame(gameSize, gameSize, randomSeed);
+
+        int[][] mazeMap = mazeToInt();
+        double[] processedMaze = processMaze(mazeMap);
+        
+        int flattenedSize = processedMaze.length;
+
+        //w q e and s outputs
+        int[] networkStructure = {flattenedSize, 128, 64, 32, 8, 4} ;
+        
+    }
+    //normalizes and flattens maze
+    public double[] processMaze(int[][] mazeMap){
+        int [] flattenedMaze = new int[0];
+        double [] normalizedFlattenedMaze = new double[0];
+        if(mazeMap.length == 0){
+            System.err.println("Error maze empty");
+            return normalizedFlattenedMaze;
+        }
+        if(mazeMap[0].length == 0){
+            System.err.println("Error maze not filled");
+            return normalizedFlattenedMaze;
+        }
+        flattenedMaze = new int[mazeMap.length * mazeMap[0].length];
+        normalizedFlattenedMaze = new double[mazeMap.length * mazeMap[0].length];
+
+
+        int maxValue = 0;
+        int minValue = 100;
+        for(int i = 0; i < mazeMap.length; i++){
+            for(int j = 0; j < mazeMap[i].length; j++){
+
+                int value = mazeMap[i][j];
+                int flattenedIndex = (i * mazeMap[i].length) + j;
+                flattenedMaze[flattenedIndex] = value;
+                maxValue = Math.max(maxValue, value);
+                minValue = Math.min(minValue, value);
+            }
+        }
+        normalizedFlattenedMaze = normalizeArr(flattenedMaze, minValue, maxValue);
+        return normalizedFlattenedMaze;
+    }
+    private double[] normalizeArr(int[] arr, int minVal, int maxVal){
+        double[] normalizedArr = new double[arr.length];
+
+        for(int i = 0; i < arr.length; i++){
+            int value = arr[i];
+            double normalizedValue = 0.0;
+            if(minVal != maxVal){
+                normalizedValue = (double)(value - minVal)/(maxVal - minVal);
+            }
+             
+            normalizedArr[i] = normalizedValue;
+        }
+
+        return normalizedArr;
+    }
+    public void freeNetwork(NeuralNetwork nn){
+        nn.close();
+    }
+    public NeuralNetwork createNN(int strucutre[]){
+        NeuralNetwork nn = new NeuralNetwork(strucutre);
+        return nn;
     }
 
     public Entity[][] createMaze(int mazeSeed){
@@ -35,7 +106,13 @@ class dqnMazeGame{
         return entityMap;
 
     }
-    public int[][] mazeToInt(Entity[][] mazeMap){
+    public int[][] mazeToInt(){
+
+        Entity[][] mazeMap = game.maze;
+
+        int[] playerPos = game.getPlayerPosition();
+
+
         int[][] intMap = new int[0][0];
         //catch case if maze is empty
         if(mazeMap.length == 0){
@@ -49,7 +126,7 @@ class dqnMazeGame{
         ids = retrieveLabels();
         int lastInt = -1;
         if(ids.map.size() != 0){
-            Integer.parseInt(ids.getLastValue());
+            lastInt = Integer.parseInt(ids.getLastValue());
         }
         
 
@@ -61,14 +138,19 @@ class dqnMazeGame{
                 if(tileClassString.equals("TrappedFloor")){
                     tileClassString = mazeMap[i][j].getEffect().getClass().getSimpleName();
                 }
+                if(i == playerPos[1] && j == playerPos[0]){
+                    tileClassString = "Player";
+                }
                 String id = ids.get(tileClassString);
+
 
                 if(id == null){
                     lastInt++;
                     String lastValue = String.valueOf(lastInt);
                     ids.put(tileClassString, lastValue);
                     id = lastValue;
-                }
+                }   
+
                 intMap[i][j] = Integer.parseInt(id);
             }
         }
@@ -78,7 +160,6 @@ class dqnMazeGame{
             }
             System.out.println();
         }
-        System.out.println(intMap);
         storeLabels();
         return intMap;
     }
