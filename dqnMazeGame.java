@@ -18,12 +18,15 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 
 import java.io.IOException;
+import java.util.Random;
+
 
 class dqnMazeGame{
     Json ids = new Json();
     String labelFP = "./data/labels.json";
     int gameSize = 25; 
     int randomSeed = 512;
+    int[][] intMap;
 
     MazeGame game;
     public void main(){
@@ -33,89 +36,147 @@ class dqnMazeGame{
     public void setup(){
 
         game = new MazeGame(gameSize, gameSize, randomSeed);
-
+        dqn();
         
     }
     public void dqn(){
         int flattenedSize = gameSize*gameSize;
         //w q e and s outputs
-        int[] networkStructure = {flattenedSize, 128, 64, 32, 8, 4};
+        int[] networkStructure = {flattenedSize, 256, 128, 96, 32, 4};
 
         NeuralNetwork qPredicted = new NeuralNetwork(networkStructure);
         NeuralNetwork qNext = qPredicted.copy();
         learn(qPredicted, qNext);
-        qPredicted.close();
-        qNext.close();
 
     }
-
+    int numSteps = 0;
     public void learn(NeuralNetwork currentMoveModel, NeuralNetwork nextMoveModel){
-        int[][] mazeMap = mazeToInt();
-        //converts intmap to flattedned maze of normalized values
-        double[] processedMaze = processMaze(mazeMap);
-        double epsilon = 0.1;
-        double gamma = 0.99;
-        boolean endCondition = false;
-        //q, w, e, s
-        int numActions = 4;
+        Random r = new Random();
+        int numEps = 1;
+        for(int episode = 0; episode < numEps; episode++){
+            
+            int randNumber = r.nextInt();
 
-        while(!endCondition){
+            game = new MazeGame(gameSize, gameSize, randNumber);
+            int[][] mazeMap = mazeToInt();
+            //converts intmap to flattedned maze of normalized values
+            double[] processedMaze = processMaze(mazeMap);
+            double epsilon = 0.1;
+            double gamma = 0.99;
+            boolean endCondition = false;
+            //q, w, e, s
+            int numActions = 4;
+            int step = 0;
 
-            int currentHealth = game.getHealth();
-            int action = 0;
-            if(Math.random() < epsilon){
-                action = (int) (Math.random() * numActions);
-            }
-            else{
+            while(!endCondition){
+                if(episode == numEps - 1){
+                    printMaze();
+                }
+                int currentHealth = game.getHealth();
+                int action = 0;
                 double qValues[] = new double[numActions];
-                qValues = currentMoveModel.forward(processedMaze);
-                double maxQ = qValues[0];
-                for(int i = 1; i < numActions; i++){
-                    if(maxQ < qValues[i]){
-                        maxQ = qValues[i];
-                        action = i;
+                if(Math.random() < epsilon){
+                    action = (int) (Math.random() * numActions);
+                    qValues = currentMoveModel.forward(processedMaze);
+                }
+                else{
+                    qValues = currentMoveModel.forward(processedMaze);
+                    double maxQ = qValues[0];
+                    for(int i = 1; i < numActions; i++){
+                        if(maxQ < qValues[i]){
+                            maxQ = qValues[i];
+                            action = i;
+                        }
+                        
                     }
-                    
+
+                }
+                double preMoveDistance = game.distanceToGoal();
+                game.move(action);
+                double postMoveDistance = game.distanceToGoal();
+                //every time you move you get a negative reward
+
+                double[] rewards = new double[7];
+                double reward = -0.02;
+                rewards[0] = reward;
+                int newHealth = game.getHealth();
+                //punishment rules
+                if(newHealth < currentHealth){
+                    reward -= 0.1;
+                    rewards[1] = -0.1;
+                }
+                if(!game.canMove()){
+                    reward -= 0.05; //penalty if there is a stuck effect
+                    rewards[2] = -0.05;
+                }
+                //reward rules
+                if(newHealth > currentHealth){
+                    reward += 0.1;
+                    rewards[3] = 0.1;
+                }
+                if(preMoveDistance > postMoveDistance){
+                    reward += 0.01;
+                    rewards[4] = 0.01;
+                }
+                
+                //conclusion rules
+                if(game.isGameOver()){
+                    if(game.isDead()){
+                        reward = -1;
+                        rewards[5] = -1;
+                    }
+                    if(game.goalReached()){
+                        reward = 1;
+                        rewards[6] = 1;
+                        System.out.println("Game won");
+                    }
+                }   
+                double[] nextState = processMaze(mazeToInt());
+                double[] qNext = nextMoveModel.forward(nextState);
+
+                double maxNextQ = 0.0;
+                if(!endCondition){
+                    maxNextQ = qNext[0];
+                    for(int i = 1; i < qNext.length; i++){
+                        maxNextQ = Math.max(maxNextQ, qNext[i]);
+                    }
+                }
+                double targetQ = reward + (endCondition ? 0.0: gamma * maxNextQ);
+                double[] expected = new double[qValues.length];
+
+                for(int i = 0; i < expected.length; i++){
+                    expected[i] = 0.0;
                 }
 
-            }
-            double preMoveDistance = game.distanceToGoal();
-            game.move(action);
-            double postMoveDistance = game.distanceToGoal();
-            //every time you move you get a negative reward
-            double reward = -0.05;
-            int newHealth = game.getHealth();
-            //punishment rules
-            if(newHealth < currentHealth){
-                reward -= 0.1;
-            }
-            if(!game.canMove()){
-                reward -= 0.05; //penalty if there is a stuck effect
-            }
-            //reward rules
-            if(newHealth > currentHealth){
-                reward += 0.1;
-            }
-            if(preMoveDistance > postMoveDistance){
-                reward += 0.01;
-            }
-            
-            //conclusion rules
-            if(game.isGameOver()){
-                if(game.isDead()){
-                    reward = -1;
-                }
-                if(game.goalReached()){
-                    reward = 1;
-                }
-            }   
-            double[] predictedQ = new double[numActions];
-            
+                expected[action] = targetQ;
 
-
-            endCondition = true;
+                currentMoveModel.backPropRMS(expected, expected.length);
+                step++;
+                if(step % 50 == 0){
+                    System.out.println("Copying network");
+                    nextMoveModel.close();
+                    nextMoveModel = currentMoveModel.copy();
+                }
+                if(step > 500 || game.isGameOver() || game.isDead()){
+                    endCondition = true;
+                }
+            }
+            nextMoveModel.close();
+            nextMoveModel = currentMoveModel.copy();
+            System.out.println("Episode end");
         }
-
+        System.out.println("Training end");
+        currentMoveModel.close();
+        nextMoveModel.close();
+    }
+    private void printMaze(){
+        for(int[] row: intMap){
+            for(int pos: row){
+                System.out.print(pos + " ");
+            }
+            System.out.println();
+        }
+        System.out.println();
     }
     //normalizes and flattens maze
     public double[] processMaze(int[][] mazeMap){
@@ -187,7 +248,7 @@ class dqnMazeGame{
         int[] playerPos = game.getPlayerPosition();
 
 
-        int[][] intMap = new int[0][0];
+        intMap = new int[0][0];
         //catch case if maze is empty
         if(mazeMap.length == 0){
             return intMap;
@@ -228,12 +289,9 @@ class dqnMazeGame{
                 intMap[i][j] = Integer.parseInt(id);
             }
         }
-        for(int[] row: intMap){
-            for(int pos: row){
-                System.out.print(pos + " ");
-            }
-            System.out.println();
-        }
+        /*
+
+        */
         storeLabels();
         return intMap;
     }

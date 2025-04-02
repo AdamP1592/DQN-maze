@@ -2,7 +2,7 @@ package neuralNetwork;
 public class NeuralNetwork implements AutoCloseable {
     NeuralNetworkWrapper nnw = new NeuralNetworkWrapper();
     private int networkStructure[];
-    long nn;
+    public long nn;
     double[] outputBuffer;
     //to simplify usage in using the neural network
     public NeuralNetwork(int structure[]){
