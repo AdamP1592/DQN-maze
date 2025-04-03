@@ -20,11 +20,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Random;
 
-
 class dqnMazeGame{
     Json ids = new Json();
     String labelFP = "./data/labels.json";
-    int gameSize = 25; 
+    int gameSize = 10; 
     int randomSeed = 512;
     int[][] intMap;
 
@@ -42,18 +41,51 @@ class dqnMazeGame{
     public void dqn(){
         int flattenedSize = gameSize*gameSize;
         //w q e and s outputs
-        int[] networkStructure = {flattenedSize, 256, 128, 96, 32, 4};
+
+        //layer 1 encodes the data 
+        int[] networkStructure = {flattenedSize, (int)Math.round(flattenedSize*1.25), (int)Math.round(flattenedSize * 0.75), (int)Math.round(flattenedSize * 0.75), 64, 32, 32, 16, 8, 4};
 
         NeuralNetwork qPredicted = new NeuralNetwork(networkStructure);
         NeuralNetwork qNext = qPredicted.copy();
         learn(qPredicted, qNext);
 
     }
-    int numSteps = 0;
+    public static double mapDistanceToValue(double distance, double maxDistance) {
+        // Clamp distance to the valid range [0, maxDistance]
+        if (distance < 0) {
+            distance = 0;
+        } else if (distance > maxDistance) {
+            distance = maxDistance;
+        }
+    
+        double yMax = 0.1;  // value when distance == 0
+        double yMin = -0.1; // value when distance == maxDistance
+    
+        // Linear interpolation:
+        // y = yMax + (yMin - yMax) * (distance / maxDistance)
+        return yMax + (yMin - yMax) * (distance / maxDistance);
+    }
+    public double calculateEpsilon(int currentStep, int maxSteps, double startingEpsilon) {
+        double minEpsilon = 0.1; // Set a minimum epsilon value.
+        // Calculate the decay factor as a fraction of remaining steps.
+        double decayFactor = 1.0 - ((double) currentStep / maxSteps);
+        double epsilon = startingEpsilon * decayFactor;
+        // Clamp epsilon to the minimum value.
+        if (epsilon < minEpsilon) {
+            epsilon = minEpsilon;
+        }
+        return epsilon;
+    }
+    
     public void learn(NeuralNetwork currentMoveModel, NeuralNetwork nextMoveModel){
         Random r = new Random();
-        int numEps = 1;
+        int numEps = 500;
+        int numActions = 4;
+        
+        int winCount = 0;
         for(int episode = 0; episode < numEps; episode++){
+
+            double maxPossibleDistance = Math.sqrt(Math.pow(gameSize, 2)+ Math.pow(gameSize, 2));
             
             int randNumber = r.nextInt();
 
@@ -61,17 +93,24 @@ class dqnMazeGame{
             int[][] mazeMap = mazeToInt();
             //converts intmap to flattedned maze of normalized values
             double[] processedMaze = processMaze(mazeMap);
-            double epsilon = 0.1;
+            double maxEpsilon = 0.9;
             double gamma = 0.99;
+            double distanceGamma = 0.9;
+
             boolean endCondition = false;
             //q, w, e, s
-            int numActions = 4;
+            
             int step = 0;
+            int maxSteps = 100;
+
+            int[] movementBuffer = new int[maxSteps];
+            double epsilon = maxEpsilon;
 
             while(!endCondition){
                 if(episode == numEps - 1){
                     printMaze();
                 }
+                
                 int currentHealth = game.getHealth();
                 int action = 0;
                 double qValues[] = new double[numActions];
@@ -91,33 +130,34 @@ class dqnMazeGame{
                     }
 
                 }
+
                 double preMoveDistance = game.distanceToGoal();
-                game.move(action);
+
+                double movementReward = game.move(action);
+                
                 double postMoveDistance = game.distanceToGoal();
                 //every time you move you get a negative reward
 
                 double[] rewards = new double[7];
-                double reward = -0.02;
+                double reward = -0.05; //moderate punishment for each step
+
                 rewards[0] = reward;
                 int newHealth = game.getHealth();
                 //punishment rules
-                if(newHealth < currentHealth){
-                    reward -= 0.1;
-                    rewards[1] = -0.1;
+
+                rewards[1] = movementReward;
+                reward += movementReward;
+
+                if(preMoveDistance == postMoveDistance){
+                    reward -= 0.01; //mild punishment for turning
                 }
-                if(!game.canMove()){
-                    reward -= 0.05; //penalty if there is a stuck effect
-                    rewards[2] = -0.05;
-                }
-                //reward rules
-                if(newHealth > currentHealth){
-                    reward += 0.1;
-                    rewards[3] = 0.1;
-                }
-                if(preMoveDistance > postMoveDistance){
-                    reward += 0.01;
-                    rewards[4] = 0.01;
-                }
+                
+                double distanceReward = mapDistanceToValue(postMoveDistance, maxPossibleDistance);
+                double newDistanceReward = distanceGamma * (1 - (postMoveDistance / maxPossibleDistance)) - (1 - (preMoveDistance / maxPossibleDistance));
+
+
+                System.out.println("distance reward: " + newDistanceReward);
+                reward += newDistanceReward;
                 
                 //conclusion rules
                 if(game.isGameOver()){
@@ -128,9 +168,15 @@ class dqnMazeGame{
                     if(game.goalReached()){
                         reward = 1;
                         rewards[6] = 1;
+                        winCount++;
                         System.out.println("Game won");
                     }
+                    endCondition  = 
+                    true;
                 }   
+                if(!game.goalReached() && step + 1 >=maxSteps){
+                    reward = -1;
+                }
                 double[] nextState = processMaze(mazeToInt());
                 double[] qNext = nextMoveModel.forward(nextState);
 
@@ -141,7 +187,11 @@ class dqnMazeGame{
                         maxNextQ = Math.max(maxNextQ, qNext[i]);
                     }
                 }
-                double targetQ = reward + (endCondition ? 0.0: gamma * maxNextQ);
+                double endConModifier = (endCondition ? 0.0: gamma * maxNextQ);
+                System.out.println("Reward" + reward + " endConModifier" + gamma + maxNextQ);
+                //catch case if there is a gameover without dying or winning
+
+                double targetQ = reward + endConModifier;
                 double[] expected = new double[qValues.length];
 
                 for(int i = 0; i < expected.length; i++){
@@ -151,21 +201,29 @@ class dqnMazeGame{
                 expected[action] = targetQ;
 
                 currentMoveModel.backPropRMS(expected, expected.length);
+
+                movementBuffer[step] = action;
                 step++;
                 if(step % 50 == 0){
                     System.out.println("Copying network");
                     nextMoveModel.close();
                     nextMoveModel = currentMoveModel.copy();
                 }
-                if(step > 500 || game.isGameOver() || game.isDead()){
+                if(step >= maxSteps || game.isGameOver() || game.isDead()){
                     endCondition = true;
+
                 }
+
+                int stepTotal = step + (episode * maxSteps);
+                int maxTotalSteps =  maxSteps * numEps;
+                epsilon = calculateEpsilon(stepTotal, maxTotalSteps, maxEpsilon);
             }
             nextMoveModel.close();
             nextMoveModel = currentMoveModel.copy();
             System.out.println("Episode end");
         }
         System.out.println("Training end");
+        System.out.println(winCount);
         currentMoveModel.close();
         nextMoveModel.close();
     }

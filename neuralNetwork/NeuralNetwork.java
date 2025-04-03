@@ -1,4 +1,5 @@
 package neuralNetwork;
+import java.util.Arrays;
 public class NeuralNetwork implements AutoCloseable {
     NeuralNetworkWrapper nnw = new NeuralNetworkWrapper();
     private int networkStructure[];
@@ -10,6 +11,14 @@ public class NeuralNetwork implements AutoCloseable {
         nn = nnw.createNeuralNetwork();
         nnw.setUpNetwork(nn, structure, structure.length);
         outputBuffer = new double[structure[structure.length - 1]];
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                this.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }));
     }
     //private constructor that only gets used by copy, just to prevent
     // the initalization of the structure and to avoid an if statement
@@ -19,7 +28,6 @@ public class NeuralNetwork implements AutoCloseable {
     }
     public double[] forward(double[] inputValues){
         int outputLayerSize = networkStructure[networkStructure.length - 1];
-
         //pass the values to the wrapper, so the c++ api can handle the network operations
         nnw.forwardPass(nn, inputValues, outputBuffer, inputValues.length, outputLayerSize);
 

@@ -20,7 +20,8 @@ public class NeuralNetworkWrapper {
     public native void backPropagate(long nn, double[] expected, int numExpected);
     
     // Example usage:
-    public static void main(String[] args) {
+    /*
+        public static void main(String[] args) {
 
         System.out.println("Starting");
         NeuralNetworkWrapper nnw = new NeuralNetworkWrapper();
@@ -60,6 +61,7 @@ public class NeuralNetworkWrapper {
         System.out.println("Back prop base network");
         //back prop the base network
         nnw.backPropagateRMS(nnHandle, expected, expected.length);
+        
         //forward pass each network to confirm different outputs
         System.out.println("First Network Outputs");
         nnw.forwardPass(nnHandle, inputs, outputs, inputs.length, outputs.length);
@@ -79,4 +81,5 @@ public class NeuralNetworkWrapper {
         nnw.destroyNeuralNetwork(nnHandle);
         nnw.destroyNeuralNetwork(copyHandle);
     }
+    */
 }
