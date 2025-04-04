@@ -50,7 +50,10 @@ public class NeuralNetwork implements AutoCloseable {
     //close case so the network is properly destroyed
     @Override
     public void close(){
-        nnw.destroyNeuralNetwork(nn);
+        if(nn!=0){
+            nnw.destroyNeuralNetwork(nn);
+        }
+        nn = 0;
     }
     
 }
