@@ -84,7 +84,7 @@ class dqnMazeGame{
         if(movement[pos] == 1){
             return 0.1;
         }
-        return Math.max(-0.1, -0.005 * movement[pos]);
+        return Math.max(-0.2, -0.01 * movement[pos]);
     }
     double interpolateDifficulty(int winCount, int maxWins){
         
@@ -138,7 +138,7 @@ class dqnMazeGame{
             //q, w, e, s
             
             int step = 0;
-            int maxSteps = 200;
+            int maxSteps = 300;
 
             int[] movementBuffer = new int[maxSteps];
             double epsilon = maxEpsilon;
@@ -175,7 +175,7 @@ class dqnMazeGame{
                 //every time you move you get a negative reward
 
                 
-                double reward = -0.05; //moderate punishment for each step
+                double reward = -0.1; //moderate punishment for each step
 
                 rewards[0] = reward;
                 int newHealth = game.getHealth();
@@ -185,7 +185,7 @@ class dqnMazeGame{
                 reward += movementReward;
 
                 if(preMoveDistance == postMoveDistance){
-                    reward -= 0.05; //mild punishment for turning
+                    reward -= 0.1; //mild punishment for turning
 
                 }
                 else{
@@ -228,7 +228,6 @@ class dqnMazeGame{
                         maxNextQ = Math.max(maxNextQ, qNext[i]);
                     }
                 }
-
 
                 double endConModifier = (endCondition ? 0.0: gamma * maxNextQ);
                 
