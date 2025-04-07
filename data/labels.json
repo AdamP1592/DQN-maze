@@ -1,7 +1,7 @@
-{"Floor": "0",
-"Wall": "1",
-"Heal": "2",
-"Stick": "3",
-"Goal": "4",
-"Fire": "5",
-"Player": "6"}
+{"Wall": "0",
+"Floor": "1",
+"Player": "2",
+"Fire": "3",
+"Heal": "4",
+"Goal": "5",
+"Stick": "6"}

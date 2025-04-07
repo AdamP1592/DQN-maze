@@ -1,5 +1,4 @@
 package neuralNetwork;
-import java.util.Arrays;
 public class NeuralNetwork implements AutoCloseable {
     NeuralNetworkWrapper nnw = new NeuralNetworkWrapper();
     private int networkStructure[];
